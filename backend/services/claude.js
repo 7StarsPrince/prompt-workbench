@@ -1,5 +1,5 @@
 const Anthropic = require('@anthropic-ai/sdk');
-const { getDb } = require('../db/init');
+const { get } = require('../db/init');
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -8,16 +8,13 @@ const anthropic = new Anthropic({
 async function chat(message, history = [], templateId = null, options = {}) {
   let systemPrompt = 'You are a helpful assistant. Reply in Chinese unless asked otherwise.';
 
-  // Load template if specified
   if (templateId) {
-    const db = getDb();
-    const template = db.prepare('SELECT system_prompt FROM templates WHERE id = ?').get(templateId);
+    const template = await get('SELECT system_prompt FROM templates WHERE id = ?', [templateId]);
     if (template) {
       systemPrompt = template.system_prompt;
     }
   }
 
-  // Convert history to Anthropic format
   const messages = history.map(h => ({
     role: h.role,
     content: h.content

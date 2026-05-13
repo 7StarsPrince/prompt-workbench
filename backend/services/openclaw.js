@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { getDb } = require('../db/init');
+const { get } = require('../db/init');
 
 const OPENCLAW_BASE_URL = process.env.OPENCLAW_URL || 'http://localhost:8080';
 
@@ -7,14 +7,12 @@ async function chat(message, history = [], templateId = null) {
   let systemPrompt = null;
 
   if (templateId) {
-    const db = getDb();
-    const template = db.prepare('SELECT system_prompt FROM templates WHERE id = ?').get(templateId);
+    const template = await get('SELECT system_prompt FROM templates WHERE id = ?', [templateId]);
     if (template) {
       systemPrompt = template.system_prompt;
     }
   }
 
-  // OpenClaw API placeholder - adjust to actual endpoint
   const response = await axios.post(`${OPENCLAW_BASE_URL}/api/v1/chat`, {
     message,
     history,

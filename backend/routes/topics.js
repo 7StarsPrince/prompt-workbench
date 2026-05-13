@@ -1,14 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { getDb } = require('../db/init');
+const { run, get, all } = require('../db/init');
 const { v4: uuidv4 } = require('uuid');
 const embeddingService = require('../services/embedding');
 
-// List all topics with message count
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const db = getDb();
-    const topics = db.prepare(`
+    const topics = await all(`
       SELECT 
         t.id, t.name, t.embedding, t.created_at, t.updated_at,
         COUNT(m.id) as message_count
@@ -16,8 +14,7 @@ router.get('/', (req, res) => {
       LEFT JOIN messages m ON t.id = m.topic_id
       GROUP BY t.id
       ORDER BY t.updated_at DESC
-    `).all();
-
+    `);
     res.json(topics.map(t => ({
       ...t,
       embedding: t.embedding ? JSON.parse(t.embedding) : null
@@ -27,32 +24,27 @@ router.get('/', (req, res) => {
   }
 });
 
-// Get single topic with messages
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const db = getDb();
-    const topic = db.prepare('SELECT * FROM topics WHERE id = ?').get(req.params.id);
+    const topic = await get('SELECT * FROM topics WHERE id = ?', [req.params.id]);
     if (!topic) return res.status(404).json({ error: 'Topic not found' });
 
-    const messages = db.prepare(
-      'SELECT * FROM messages WHERE topic_id = ? ORDER BY created_at ASC'
-    ).all(req.params.id);
-
+    const messages = await all(
+      'SELECT * FROM messages WHERE topic_id = ? ORDER BY created_at ASC',
+      [req.params.id]
+    );
     res.json({ ...topic, messages });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Create or auto-group topic
 router.post('/', async (req, res) => {
   try {
     const { name, message, autoGroup = true } = req.body;
-    const db = getDb();
 
-    // Auto-group: find similar existing topic
     if (autoGroup && message) {
-      const existingTopics = db.prepare('SELECT * FROM topics').all();
+      const existingTopics = await all('SELECT * FROM topics');
       const embedding = await embeddingService.getEmbedding(message);
 
       for (const topic of existingTopics) {
@@ -67,7 +59,6 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Create new topic
     const id = uuidv4();
     let embedding = null;
     if (message) {
@@ -75,52 +66,42 @@ router.post('/', async (req, res) => {
       embedding = JSON.stringify(emb);
     }
 
-    db.prepare('INSERT INTO topics (id, name, embedding) VALUES (?, ?, ?)')
-      .run(id, name || '新话题', embedding);
-
+    await run('INSERT INTO topics (id, name, embedding) VALUES (?, ?, ?)', [id, name || '新话题', embedding]);
     res.status(201).json({ id, name: name || '新话题', existing: false });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Update topic name
-router.patch('/:id', (req, res) => {
+router.patch('/:id', async (req, res) => {
   try {
     const { name } = req.body;
-    const db = getDb();
-    db.prepare('UPDATE topics SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(name, req.params.id);
+    await run('UPDATE topics SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [name, req.params.id]);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Delete topic
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const db = getDb();
-    db.prepare('DELETE FROM topics WHERE id = ?').run(req.params.id);
+    await run('DELETE FROM topics WHERE id = ?', [req.params.id]);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Export topic messages to Excel-compatible JSON
-router.get('/:id/export', (req, res) => {
+router.get('/:id/export', async (req, res) => {
   try {
-    const db = getDb();
-    const topic = db.prepare('SELECT * FROM topics WHERE id = ?').get(req.params.id);
+    const topic = await get('SELECT * FROM topics WHERE id = ?', [req.params.id]);
     if (!topic) return res.status(404).json({ error: 'Topic not found' });
 
-    const messages = db.prepare(
-      `SELECT role, content, model, template_id, created_at 
-       FROM messages WHERE topic_id = ? ORDER BY created_at ASC`
-    ).all(req.params.id);
+    const messages = await all(
+      `SELECT role, content, model, template_id, created_at FROM messages WHERE topic_id = ? ORDER BY created_at ASC`,
+      [req.params.id]
+    );
 
-    // Format for Excel export
     const rows = messages.map((m, i) => ({
       序号: i + 1,
       角色: m.role === 'user' ? '用户' : m.role === 'assistant' ? 'AI' : '系统',

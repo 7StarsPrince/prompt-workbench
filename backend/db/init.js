@@ -1,23 +1,50 @@
-const Database = require('better-sqlite3');
+const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'app.db');
+const DB_DIR = path.join(__dirname, 'data');
+const DB_PATH = process.env.DB_PATH || path.join(DB_DIR, 'app.db');
 
-let db;
+let db = null;
 
 function getDb() {
   if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
+    if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
+    db = new sqlite3.Database(DB_PATH);
   }
   return db;
 }
 
-function initDb() {
-  const database = getDb();
-  
+function run(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    getDb().run(sql, params, function(err) {
+      if (err) reject(err);
+      else resolve({ lastID: this.lastID, changes: this.changes });
+    });
+  });
+}
+
+function get(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    getDb().get(sql, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+}
+
+function all(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    getDb().all(sql, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+}
+
+async function initDb() {
   // Topics table
-  database.exec(`
+  await run(`
     CREATE TABLE IF NOT EXISTS topics (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -28,7 +55,7 @@ function initDb() {
   `);
 
   // Messages table
-  database.exec(`
+  await run(`
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
       topic_id TEXT NOT NULL,
@@ -42,7 +69,7 @@ function initDb() {
   `);
 
   // Templates table
-  database.exec(`
+  await run(`
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -54,11 +81,10 @@ function initDb() {
     )
   `);
 
-  // Insert default templates if not exists
-  const defaultTemplates = [
+  // Insert default templates
+  const defaults = [
     {
-      id: 'vibe-coding',
-      name: 'Vibe Coding',
+      id: 'vibe-coding', name: 'Vibe Coding',
       description: '用自然语言描述需求，AI生成代码',
       system_prompt: `你是一位全栈开发专家。用户会用自然语言描述编程需求，你需要：
 1. 理解需求并澄清歧义
@@ -69,8 +95,7 @@ function initDb() {
       example: '帮我做一个React登录表单，带邮箱验证和密码强度提示'
     },
     {
-      id: 'aigc-storyboard',
-      name: 'AIGC分镜提示词',
+      id: 'aigc-storyboard', name: 'AIGC分镜提示词',
       description: '将剧本转化为AI视频生成提示词',
       system_prompt: `你是AIGC视频导演。将用户的剧本/创意分解为分镜头脚本，每个镜头包含：
 - 画面描述（英文，用于Runway/可灵/Midjourney）
@@ -83,8 +108,7 @@ function initDb() {
       example: '一个科幻短片开场：未来城市夜景，主角在雨中发现神秘装置'
     },
     {
-      id: 'data-analysis',
-      name: '数据分析助手',
+      id: 'data-analysis', name: '数据分析助手',
       description: '分析数据并生成可视化建议',
       system_prompt: `你是数据分析专家。用户会提供数据集或描述分析需求，你需要：
 1. 理解业务问题和数据背景
@@ -97,16 +121,14 @@ function initDb() {
     }
   ];
 
-  const insertTemplate = database.prepare(`
-    INSERT OR IGNORE INTO templates (id, name, description, system_prompt, variables, example)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-
-  for (const t of defaultTemplates) {
-    insertTemplate.run(t.id, t.name, t.description, t.system_prompt, t.variables, t.example);
+  for (const t of defaults) {
+    await run(
+      `INSERT OR IGNORE INTO templates (id, name, description, system_prompt, variables, example) VALUES (?, ?, ?, ?, ?, ?)`,
+      [t.id, t.name, t.description, t.system_prompt, t.variables, t.example]
+    );
   }
 
   console.log('✅ Database initialized');
 }
 
-module.exports = { getDb, initDb };
+module.exports = { getDb, initDb, run, get, all };
