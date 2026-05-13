@@ -1,6 +1,6 @@
 const { spawn } = require('child_process');
 
-// Check if Claude Code CLI is installed
+// Check if Claude Code CLI is installed (no shell)
 async function isAvailable() {
   return new Promise((resolve) => {
     const child = spawn('claude', ['--version']);
@@ -12,12 +12,12 @@ async function isAvailable() {
 /**
  * Use Claude Code in --print (non-interactive) mode with stream-json output.
  *
- * Claude Code outputs NDJSON (newline-delimited JSON) where each line is:
- * - stream_event with content_block_delta / text_delta (streaming text)
- * - assistant (final assembled message)
- * - result (summary with cost, tokens, etc.)
+ * Claude Code outputs NDJSON where each line is a JSON event.
+ * We extract text_delta chunks for real-time streaming.
  *
- * We extract only text_delta chunks for real-time streaming to the user.
+ * IMPORTANT: --print mode takes the prompt as a POSITIONAL argument,
+ * NOT via --message. We must NOT use shell:true so Node passes the
+ * argument directly without shell interpretation.
  */
 async function chatStream(message, history = [], onChunk) {
   return new Promise((resolve, reject) => {
@@ -30,13 +30,12 @@ async function chatStream(message, history = [], onChunk) {
       fullMessage = `${context}\n\nHuman: ${message}`;
     }
 
-    // Use --message flag to pass the prompt (Claude Code --print mode does not read stdin)
+    // Pass prompt as the last positional arg; NO shell:true
     const args = [
       '--print',
       '--verbose',
       '--output-format=stream-json',
       '--include-partial-messages',
-      '--message',
       fullMessage,
     ];
 
@@ -72,7 +71,6 @@ async function chatStream(message, history = [], onChunk) {
           // Stream events: extract text_delta chunks
           if (parsed.type === 'stream_event' && parsed.event) {
             const evt = parsed.event;
-
             if (evt.type === 'content_block_delta' && evt.delta) {
               if (evt.delta.type === 'text_delta' && evt.delta.text) {
                 fullText += evt.delta.text;
