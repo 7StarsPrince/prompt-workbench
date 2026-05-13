@@ -18,9 +18,6 @@ export function useSpeech() {
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
     
-    // Optimize for Chinese
-    recognition.grammars = null; // No grammar constraints for better general recognition
-    
     recognitionRef.current = recognition;
 
     let finalTranscript = '';

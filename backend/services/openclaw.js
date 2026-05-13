@@ -28,6 +28,7 @@ async function chatStream(message, history = [], onChunk) {
 
     const args = [
       'agent',
+      '--agent', 'main',
       '--message', fullMessage,
       '--json',
       '--verbose', 'on'
