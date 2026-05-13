@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
-const llmRoutes = require('./routes/llm');
+const agentRoutes = require('./routes/agents');
 const topicRoutes = require('./routes/topics');
 const templateRoutes = require('./routes/templates');
 const { initDb } = require('./db/init');
@@ -19,7 +19,7 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
-app.use('/api/llm', llmRoutes);
+app.use('/api/agents', agentRoutes);
 app.use('/api/topics', topicRoutes);
 app.use('/api/templates', templateRoutes);
 
