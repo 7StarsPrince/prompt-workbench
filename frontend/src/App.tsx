@@ -40,7 +40,7 @@ export default function App() {
   const [streamingText, setStreamingText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { speak, isListening, startListening, stopListening } = useSpeech();
+  const { speak, isListening, interimText, startListening, stopListening } = useSpeech();
   const { agents, loadAgents, sendMessage } = useAgent(API_BASE);
   const { topics, loadTopics, switchTopic, currentTopicMessages, exportTopic } = useTopics(API_BASE);
 
@@ -246,6 +246,7 @@ export default function App() {
             <VoiceInput
               onResult={handleVoiceResult}
               isListening={isListening}
+              interimText={interimText}
               onStart={startListening}
               onStop={stopListening}
             />
