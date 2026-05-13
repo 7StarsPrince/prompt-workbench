@@ -1,7 +1,7 @@
 const { spawn } = require('child_process');
 const axios = require('axios');
 
-const OPENCLAW_BASE_URL = process.env.OPENCLAW_URL || 'http://localhost:8080';
+const OPENCLAW_BASE_URL = process.env.OPENCLAW_URL || 'http://127.0.0.1:18789';
 
 // Check if local OpenClaw gateway is running
 async function isAvailable() {
